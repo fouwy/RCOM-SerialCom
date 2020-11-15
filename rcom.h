@@ -17,6 +17,7 @@
 #define REJ_0 0x05 //reject, N = 0
 #define REJ_1 0x25 //reject, N = 1
 #define ESC 0x7D   //ESCAPE character
+#define MAX_DATA_SIZE 1000
 
 extern volatile int timeout;
 extern volatile int recACK;
@@ -34,6 +35,7 @@ typedef enum
     C,
     BCC1,
     BCC2,
+    DATA,
     S_STOP
 } states;
 

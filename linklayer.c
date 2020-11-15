@@ -10,6 +10,9 @@
 #include "linklayer.h"
 #include "rcom.h"
 
+int fd;
+linkLayer ll;
+
 void sig_handler()
 {
 	printf("sig\n");
@@ -26,13 +29,13 @@ void sig_handler()
 
 
 int llopen(linkLayer connectionParameters) {
-    int fd, c, res;
+    int c, res;
     int retranCount;
     struct termios oldtio, newtio;
-    linkLayer link = connectionParameters;
+    ll = connectionParameters;
 
-    if	((strcmp("/dev/ttyS1", link.serialPort) != 0) &&
-		 (strcmp("/dev/ttyS2", link.serialPort) != 0))
+    if	((strcmp("/dev/ttyS1", ll.serialPort) != 0) &&
+		 (strcmp("/dev/ttyS2", ll.serialPort) != 0))
 	{
 		printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
 		return -1;
@@ -47,11 +50,11 @@ int llopen(linkLayer connectionParameters) {
 	REJ_FLAG = FALSE;
 	Ns = 1;
 
-    fd = open(link.serialPort, O_RDWR | O_NOCTTY);
+    fd = open(ll.serialPort, O_RDWR | O_NOCTTY);
 
 	if (fd < 0)
 	{
-		perror(link.serialPort);
+		perror(ll.serialPort);
 		exit(-1);
 	}
     if (tcgetattr(fd, &oldtio) == -1)
@@ -60,7 +63,7 @@ int llopen(linkLayer connectionParameters) {
 		exit(-1);
 	}
     bzero(&newtio, sizeof(newtio));
-	newtio.c_cflag = link.baudRate | CS8 | CLOCAL | CREAD;
+	newtio.c_cflag = ll.baudRate | CS8 | CLOCAL | CREAD;
 	newtio.c_iflag = IGNPAR;
 	newtio.c_oflag = 0;
 	/* set input mode (non-canonical, no echo,...) */
@@ -77,20 +80,20 @@ int llopen(linkLayer connectionParameters) {
     printf("New termios structure set\n");
 
     //TRANSMITTER
-    if (link.role == TRANSMITTER) 
+    if (ll.role == TRANSMITTER) 
     {   
         printf("TRANSMITTER\n");
-        char trash[5];  //buffer for trash
+        char trash[5] = {};  //buffer for trash
         (void)signal(SIGALRM, sig_handler);
 
         res = sendSET(fd);
         printf("%d bytes written\n", res);
 
-        while ((recUA == FALSE) && (retranCount < link.numTries))
+        while ((recUA == FALSE) && (retranCount < ll.numTries))
         {    
             if (timeout == FALSE && recUA == FALSE)
             {
-                alarm(link.timeOut); //timeout in seconds
+                alarm(ll.timeOut); //timeout in seconds
                 receiveUA(fd, trash);
             }
 
@@ -103,8 +106,10 @@ int llopen(linkLayer connectionParameters) {
             }
         }
 
-	if (link.numTries == MAX_RETRANSMISSIONS_DEFAULT)
+	if (retranCount == MAX_RETRANSMISSIONS_DEFAULT) {
 		printf("Did not respond after %d tries\n", MAX_RETRANSMISSIONS_DEFAULT);
+		return -1;
+	}
 
     for (int i = 0; i < 3; i++)
 		printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
@@ -112,7 +117,7 @@ int llopen(linkLayer connectionParameters) {
 
 
     //RECEIVER
-    else if (link.role == RECEIVER)
+    else if (ll.role == RECEIVER)
     {
         printf("RECEIVER\n");
         char trash[5];     //buffer for trash
@@ -128,10 +133,10 @@ int llopen(linkLayer connectionParameters) {
     return fd;
 }
 
-int llwrite(int fd, char* buf, int bufSize) {
+int llwrite(char* buf, int bufSize) {
 	int res, i, retranCount = 0;
 	char supervBuf[5];	  //Supervision Frames Buffer
-	linkLayer link;
+
 	if (bufSize > MAX_PAYLOAD_SIZE) {
 		printf("Payload Size Greater than Max Allowed");
 		return -1;
@@ -140,19 +145,18 @@ int llwrite(int fd, char* buf, int bufSize) {
 	res = sendData(fd, buf, bufSize);
 	printf("%d bytes written\n", res);
 
-	receiveACK(fd, supervBuf);
-
-	while ((recACK == FALSE) && (retranCount < link.numTries))
+	while ((recACK == FALSE) && (retranCount < ll.numTries))
 	{
 		
 		if ((timeout == FALSE) && (REJ_FLAG == FALSE))
 		{
-			alarm(3); //3 second time-out
+			alarm(ll.timeOut);		//timeout in seconds
 			REJ_FLAG = receiveACK(fd, supervBuf);
+	
 		}
 
-		if ((timeout == TRUE) || REJ_FLAG)
-		{
+		if ((timeout == TRUE) || (REJ_FLAG == TRUE))
+		{	
 			res = sendData(fd, buf, bufSize);
 			retranCount++;
 			if (REJ_FLAG) {
@@ -168,5 +172,17 @@ int llwrite(int fd, char* buf, int bufSize) {
 
 	for (i = 0; i < 3; i++)
 		printf("Message received: 0x%02x\n", (unsigned char)supervBuf[i]);
+}
 
+int llread(char* packet) {
+	int bytes_read;
+	char control;
+	Ns = 1; //ainda nao implementado
+	//deve ser preciso mudar isto quando o numero da transmissao funcionar
+	//para reenviar o ACK
+	bytes_read = receiveData(fd, packet);
+	control = currR(!REJ_FLAG);
+	sendACK(fd, control);
+
+	return bytes_read;
 }
