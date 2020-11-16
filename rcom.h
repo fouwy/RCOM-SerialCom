@@ -53,7 +53,7 @@ void sig_handler();
 
 char ctrField();
 
-char *byteStuffer(char *buf, int length);
+void byteStuffer(char *buf, int length);
 
 int receiveACK(int fd, char *rbuf); //returns 0 if posACK, returns 1 if negACK
 
@@ -68,7 +68,7 @@ void receiveSET(int fd, char *rbuf);
 
 int receiveData(int fd, char *rbuf);
 
-char *byteDestuffer(char *buf, int length);
+void byteDestuffer(char *buf, int length);
 
 char currS();
 #endif

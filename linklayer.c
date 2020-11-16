@@ -15,7 +15,7 @@ linkLayer ll;
 
 void sig_handler()
 {
-	printf("sig\n");
+	// printf("sig\n");
 	if (recUA == FALSE)
 	{
 		timeout = TRUE;
@@ -87,7 +87,7 @@ int llopen(linkLayer connectionParameters) {
         (void)signal(SIGALRM, sig_handler);
 
         res = sendSET(fd);
-        printf("%d bytes written\n", res);
+        // printf("%d bytes written\n", res);
 
         while ((recUA == FALSE) && (retranCount < ll.numTries))
         {    
@@ -111,8 +111,8 @@ int llopen(linkLayer connectionParameters) {
 		return -1;
 	}
 
-    for (int i = 0; i < 3; i++)
-		printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
+    // for (int i = 0; i < 3; i++)
+	// 	printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
     }
 
 
@@ -123,11 +123,11 @@ int llopen(linkLayer connectionParameters) {
         char trash[5];     //buffer for trash
         receiveSET(fd, trash);
 
-        for (int i = 0; i < 3; i++)
-		    printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
+        // for (int i = 0; i < 3; i++)
+		//     printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
             
         res = sendUA(fd);
-		printf("%d bytes written\n", res);
+		// printf("%d bytes written\n", res);
     }
 
     return fd;
@@ -143,7 +143,7 @@ int llwrite(char* buf, int bufSize) {
 	}
 
 	res = sendData(fd, buf, bufSize);
-	printf("%d bytes written\n", res);
+	// printf("%d bytes written\n", res);
 
 	while ((recACK == FALSE) && (retranCount < ll.numTries))
 	{
@@ -170,8 +170,8 @@ int llwrite(char* buf, int bufSize) {
 		}
 	}
 
-	for (i = 0; i < 3; i++)
-		printf("Message received: 0x%02x\n", (unsigned char)supervBuf[i]);
+	// for (i = 0; i < 3; i++)
+	// 	printf("Message received: 0x%02x\n", (unsigned char)supervBuf[i]);
 }
 
 int llread(char* packet) {
