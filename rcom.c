@@ -56,6 +56,32 @@ char ctrField()
 	return control;
 }
 
+char currR(int positiveACK)
+{
+	if (positiveACK)
+	{
+		if (Ns == 0)
+			return RR_1;
+		else
+			return RR_0;
+	}
+	else
+	{
+		if (Ns == 0)
+			return REJ_1;
+		else
+			return REJ_0;
+	}
+}
+
+char currS()
+{
+	if (Ns == 1)
+		return 0x02;
+	else
+		return 0x00;
+}
+
 char getBcc(char *block, int length)
 {
 	unsigned char bcc = block[0];
@@ -144,32 +170,6 @@ int sendSET(int fd)
 	res = write(fd, buf, 5);
 
 	return res;
-}
-
-char currR(int positiveACK)
-{
-	if (positiveACK)
-	{
-		if (Ns == 0)
-			return RR_1;
-		else
-			return RR_0;
-	}
-	else
-	{
-		if (Ns == 0)
-			return REJ_1;
-		else
-			return REJ_0;
-	}
-}
-
-char currS()
-{
-	if (Ns == 1)
-		return 0x02;
-	else
-		return 0x00;
 }
 
 int receiveACK(int fd, char *rbuf)
@@ -302,7 +302,7 @@ int receiveACK(int fd, char *rbuf)
 	return REJ_FLAG;
 }
 
-void receiveUA(int fd, char *rbuf)
+void receiveUA(int fd, char *rbuf, int role)
 {
 	char character;
 	int pos = 0;
@@ -336,11 +336,22 @@ void receiveUA(int fd, char *rbuf)
 			break;
 
 		case FLAG:
-			//printf("FLAG\n");
-			if (buffer[pos] == A_RCV)
-			{
-				pos++;
-				state = A;
+			//TRANSMITTER
+			if (role == 0) {
+				if (buffer[pos] == A_RCV)
+				{	
+					// printf("t_here\n");
+					pos++;
+					state = A;
+				}
+			} //RECEIVER
+			else if (role == 1) {
+				if (buffer[pos] == A_TRS)
+				{
+					// printf("rec_here\n");
+					pos++;
+					state = A;
+				}
 			}
 			else if (buffer[pos] == FLAG_RCV)
 			{
@@ -354,9 +365,9 @@ void receiveUA(int fd, char *rbuf)
 			break;
 
 		case A:
-			//printf("A\n");
+			// printf("A\n");
 			if (buffer[pos] == C_UA)
-			{
+			{	
 				pos++;
 				state = C;
 			}
@@ -374,8 +385,9 @@ void receiveUA(int fd, char *rbuf)
 
 		case C:
 			//printf("C\n");
-			if (buffer[pos] == A_RCV ^ C_UA)
-			{
+			if (buffer[pos] == (buffer[0] ^ C_UA))
+			{	
+				// printf("here\n");
 				pos++;
 				state = BCC1;
 			}
@@ -407,7 +419,7 @@ void receiveUA(int fd, char *rbuf)
 		case S_STOP:
 			//printf("STOP\n");
 			STOP = TRUE;
-			// printf("UA received\n");
+			printf("UA received\n");
 			break;
 		}
 	}
@@ -433,14 +445,17 @@ int sendACK(int fd, char control)
 	return res;
 }
 
-int sendUA(int fd)
+int sendUA(int fd, int role)
 {
 	int res;
 	char buf[5];
 
 	buf[0] = FLAG_RCV;
-	buf[1] = 0x01;			  //A--Rx->Tx
-	buf[2] = 0x07;			  //C--UA
+	if (role == 0)	
+		buf[1] = A_TRS;
+	else			
+		buf[1] = A_RCV;
+	buf[2] = C_UA;			  //C--UA
 	buf[3] = buf[1] ^ buf[2]; //Bcc
 	buf[4] = FLAG_RCV;
 
@@ -567,6 +582,7 @@ int receiveData(int fd, char *rbuf)
 	states state = START;
 	REJ_FLAG = FALSE;
 	STOP = FALSE;
+	discFlag = FALSE;
 
 	while (STOP == FALSE)
 	{ /* loop for input */
@@ -621,6 +637,11 @@ int receiveData(int fd, char *rbuf)
 				pos++;
 				state = C;
 			}
+			else if (buffer[pos] == DISC) {
+				discFlag = TRUE;
+				pos++;
+				state = C;
+			}
 			else if (buffer[pos] == FLAG_RCV)
 			{
 				pos = 1;
@@ -634,11 +655,13 @@ int receiveData(int fd, char *rbuf)
 			break;
 
 		case C:
-	//		printf("C \n");
 			if (buffer[pos] == A_TRS ^ buffer[pos - 1])
 			{
 				pos++;
-				state = BCC1;
+				// if (discFlag == TRUE)
+				// 	state = BCC2;
+				// else
+					state = BCC1;
 			}
 			else if (buffer[pos] == FLAG_RCV)
 			{
@@ -647,7 +670,6 @@ int receiveData(int fd, char *rbuf)
 			}
 			else
 			{
-	//			printf("Bcc1 ERROR\n");
 				REJ_FLAG = TRUE;
 				STOP = TRUE;
 			}
@@ -716,7 +738,6 @@ int receiveData(int fd, char *rbuf)
 		}
 	}
 
-	// REJ_FLAG = 0;
 	if(!REJ_FLAG) {
 		for (int i=0; i<destuff_data_size; i++)
 			rbuf[i] = destuffed_data[i];
@@ -726,6 +747,149 @@ int receiveData(int fd, char *rbuf)
 	}
 	
 	free(destuffed_data);
-	
+
 	return destuff_data_size;
+}
+
+int sendDISC(int fd, int role) {
+	int res;
+	char buf[5];
+
+	buf[0] = 0x7E;			  //FLAG
+	if (role == 0)	buf[1] = A_TRS;
+	else			buf[1] = A_RCV;
+	buf[2] = DISC;			  //C--DISC
+	buf[3] = buf[1] ^ buf[2]; //Bcc--XOR
+	buf[4] = 0x7E;			  //FLAG
+
+	res = write(fd, buf, 5);
+
+	return res;
+}
+
+int receiveDISC(int fd, char *rbuf, int role) {
+	char character;
+	int pos = 0;
+	int res = 0;
+	char buffer[3] = {};
+
+	states state = START;
+	STOP = FALSE;
+	recACK = FALSE;
+
+	while (STOP == FALSE)
+	{ /* loop for input */
+
+		if (timeout == TRUE)
+			return 0;
+
+		res = read(fd, &character, 1);
+		if (res < 0)
+			printf("Error reading\n");
+
+		buffer[pos] = character;
+
+		switch (state)
+		{
+		case START:
+			if (buffer[pos] == FLAG_RCV)
+			{
+				state = FLAG;
+			}
+			else
+				state = START;
+			break;
+
+		case FLAG:
+			//TRANSMITTER
+			if (role == 0) {
+				if (buffer[pos] == A_RCV)
+				{	
+					// printf("t_here\n");
+					pos++;
+					state = A;
+				}
+			} //RECEIVER
+			else if (role == 1) {
+				if (buffer[pos] == A_TRS)
+				{
+					// printf("rec_here\n");
+					pos++;
+					state = A;
+				}
+			}
+			else if (buffer[pos] == FLAG_RCV)
+			{
+				state = FLAG;
+			}
+			else
+			{
+				pos = 0;
+				state = START;
+			}
+			break;
+
+		case A:
+	//		printf("A\n");
+			if (buffer[pos] == DISC)
+			{
+				pos++;
+				state = C;
+			}
+			else if (buffer[pos] == FLAG_RCV)
+			{
+				pos = 1;
+				state = FLAG;
+			}
+			else
+			{
+				pos = 0;
+				state = START;
+			}
+			break;
+
+		case C:
+	//		printf("C\n");
+			if (buffer[pos] == (buffer[0] ^ DISC))
+			{
+				pos++;
+				state = BCC1;
+			}
+			else if (buffer[pos] == FLAG_RCV)
+			{
+				pos = 1;
+				state = FLAG;
+			}
+			else
+			{
+				pos = 0;
+				state = START;
+			}
+			break;
+
+		case BCC1:
+	//		printf("Bcc\n");
+			if (buffer[pos] == FLAG_RCV)
+			{
+				state = S_STOP;
+			}
+			else
+			{
+				pos = 0;
+				state = START;
+			}
+			break;
+
+		case S_STOP:
+			printf("DISC received\n");
+			STOP = TRUE;
+			break;
+		}
+	}
+
+	for (int i = 0; i < 3; i++)
+		rbuf[i] = buffer[i];
+
+	recACK = TRUE;
+	return 1;
 }

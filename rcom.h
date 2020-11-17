@@ -42,10 +42,16 @@ typedef enum
 //COMMON
 char getBcc(char *block, int length);
 
+int sendDISC(int fd, int role);
+
+int receiveDISC(int fd, char *rbuf, int role);
+
+int sendUA(int fd, int role);
+
+void receiveUA(int fd, char *rbuf, int role);
+
 //TRANSMITTER
 int sendSET(int fd);
-
-void receiveUA(int fd, char *rbuf);
 
 int sendData(int fd, char *buffer, int length);
 
@@ -60,8 +66,6 @@ int receiveACK(int fd, char *rbuf); //returns 0 if posACK, returns 1 if negACK
 char currR(int positiveACK);
 
 //RECEIVER
-int sendUA(int fd);
-
 int sendACK(int fd, char control);
 
 void receiveSET(int fd, char *rbuf);
