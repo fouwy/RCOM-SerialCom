@@ -26,6 +26,7 @@ extern volatile int STOP;
 extern volatile int discFlag;
 extern volatile int REJ_FLAG;
 extern volatile int Ns;
+extern volatile int Nr;
 
 typedef enum
 {
@@ -63,10 +64,13 @@ void byteStuffer(char *buf, int length);
 
 int receiveACK(int fd, char *rbuf); //returns 0 if posACK, returns 1 if negACK
 
-char currR(int positiveACK);
+
+char currR_TRANS(int positiveACK);
 
 //RECEIVER
 int sendACK(int fd, char control);
+
+char currR(int positiveACK);
 
 void receiveSET(int fd, char *rbuf);
 

@@ -11,6 +11,7 @@ volatile int STOP;
 volatile int discFlag;
 volatile int REJ_FLAG;
 volatile int Ns;
+volatile int Nr;
 
 int sendData(int fd, char *buffer, int length)
 {
@@ -50,9 +51,14 @@ int sendData(int fd, char *buffer, int length)
 }
 
 char ctrField()
-{
+{	
 	char control = 0x02;
 
+	if (Ns == 1)
+		control = 0x02;
+	else
+		control = 0x00;
+		
 	return control;
 }
 
@@ -60,14 +66,32 @@ char currR(int positiveACK)
 {
 	if (positiveACK)
 	{
-		if (Ns == 0)
+		if (Nr == 0)
 			return RR_1;
 		else
 			return RR_0;
 	}
 	else
 	{
-		if (Ns == 0)
+		if (Nr == 0)
+			return REJ_1;
+		else
+			return REJ_0;
+	}
+}
+
+char currR_TRANS(int positiveACK)
+{
+	if (positiveACK)
+	{
+		if (Ns == 1)
+			return RR_1;
+		else
+			return RR_0;
+	}
+	else
+	{
+		if (Ns == 1)
 			return REJ_1;
 		else
 			return REJ_0;
@@ -76,7 +100,7 @@ char currR(int positiveACK)
 
 char currS()
 {
-	if (Ns == 1)
+	if (Nr == 0)
 		return 0x02;
 	else
 		return 0x00;
@@ -231,12 +255,12 @@ int receiveACK(int fd, char *rbuf)
 				pos++;
 				state = C;
 			}
-			else if (buffer[pos] == currR(TRUE))		//mudar depois para currR(true)
+			else if (buffer[pos] == currR_TRANS(TRUE))
 			{ //positive ACK
 				pos++;
 				state = C;
 			}
-			else if (buffer[pos] == currR(FALSE))		
+			else if (buffer[pos] == currR_TRANS(FALSE))		
 			{ //negative ACK
 				REJ_FLAG = TRUE;
 				pos++;

@@ -48,7 +48,8 @@ int llopen(linkLayer connectionParameters) {
 	STOP = FALSE;
 	discFlag = FALSE;
 	REJ_FLAG = FALSE;
-	Ns = 1;
+	Ns = 0;		//for transmitter
+	Nr = 1;		//for receiver
 
     fd = open(ll.serialPort, O_RDWR | O_NOCTTY);
 
@@ -106,10 +107,10 @@ int llopen(linkLayer connectionParameters) {
             }
         }
 
-	if (retranCount == MAX_RETRANSMISSIONS_DEFAULT) {
-		printf("Did not respond after %d tries\n", MAX_RETRANSMISSIONS_DEFAULT);
-		return -1;
-	}
+		if (retranCount == MAX_RETRANSMISSIONS_DEFAULT) {
+			printf("Did not respond after %d tries\n", MAX_RETRANSMISSIONS_DEFAULT);
+			return -1;
+		}
 
     // for (int i = 0; i < 3; i++)
 	// 	printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
@@ -118,7 +119,7 @@ int llopen(linkLayer connectionParameters) {
 
     //RECEIVER
     else if (ll.role == RECEIVER)
-    {
+    {	
         printf("RECEIVER\n");
         char trash[5];     //buffer for trash
         receiveSET(fd, trash);
@@ -170,8 +171,16 @@ int llwrite(char* buf, int bufSize) {
 		}
 	}
 
+	printf("Ns: %d\n", Ns);
+
+	if (Ns == 1)
+		Ns = 0;
+	else
+		Ns = 1;
+	
 	// for (i = 0; i < 3; i++)
 	// 	printf("Message received: 0x%02x\n", (unsigned char)supervBuf[i]);
+	return res;
 }
 
 int llread(char* packet) {
@@ -183,6 +192,15 @@ int llread(char* packet) {
 	control = currR(!REJ_FLAG);
 	sendACK(fd, control);
 
+	printf("Nr: %d\n", Nr);
+
+	if (REJ_FLAG == FALSE) {
+		if (Nr == 1)
+			Nr = 0;
+		else
+			Nr = 1;
+	}
+	
 	return bytes_read;
 }
 
