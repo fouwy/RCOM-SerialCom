@@ -7,12 +7,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/time.h>
 #include "linklayer.h"
 #include "rcom.h"
 
 int fd;
+int total_msg_tx, total_msg_rx;
+int total_rej_tx, total_rej_rx, total_timeout;
 linkLayer ll;
 struct termios oldtio, newtio;
+struct timeval start, end;
 
 void sig_handler()
 {
@@ -52,6 +56,13 @@ int llopen(linkLayer connectionParameters) {
 	Ns = 0;		//for transmitter
 	Nr = 1;		//for receiver
 
+	//initialize statistics variables
+	total_msg_tx = 0;
+	total_msg_rx = 0;
+	total_rej_tx = 0;
+	total_rej_rx = 0;
+	total_timeout = 0;
+
     fd = open(ll.serialPort, O_RDWR | O_NOCTTY);
 
 	if (fd < 0)
@@ -81,6 +92,9 @@ int llopen(linkLayer connectionParameters) {
 	}
     printf("New termios structure set\n");
 
+	//for time taken statistics
+	gettimeofday(&start, NULL);
+
     //TRANSMITTER
     if (ll.role == TRANSMITTER) 
     {   
@@ -89,7 +103,7 @@ int llopen(linkLayer connectionParameters) {
         (void)signal(SIGALRM, sig_handler);
 
         res = sendSET(fd);
-        printf("%d bytes written\n", res);
+        // printf("%d bytes written\n", res);
 
         while ((recUA == FALSE) && (retranCount < ll.numTries))
         {    
@@ -158,7 +172,7 @@ int llwrite(char* buf, int bufSize) {
 	
 		}
 
-		printf("Timeout= %d, REJ_FLAG = %d\n", timeout, REJ_FLAG);
+		// printf("Timeout= %d, REJ_FLAG = %d\n", timeout, REJ_FLAG);
 
 		if ((timeout == TRUE) || (REJ_FLAG == TRUE))
 		{	
@@ -168,15 +182,22 @@ int llwrite(char* buf, int bufSize) {
 				printf("(REJECTED)RESENDING...%d bytes written\n", res);
 				REJ_FLAG = FALSE;
 				recACK = FALSE;
+				total_rej_tx;
 			}
-			else
+			else {
 				printf("(TIME-OUT)RESENDING...%d bytes written\n", res);
+				total_timeout++;
+			}
 			timeout = FALSE;
 		}
 	}
 
-	printf("retransmittions: %d\n", retranCount);
-	printf("Ns: %d\n", Ns);
+	if (retranCount == ll.numTries) {
+		printf("Did not respond after %d tries\n", ll.numTries);
+		return -1;
+	}
+
+	//printf("Ns: %d\n", Ns);
 
 	if (Ns == 1)
 		Ns = 0;
@@ -184,6 +205,9 @@ int llwrite(char* buf, int bufSize) {
 		Ns = 1;
 	
 	alarm(0);		//cancel alarm
+	
+	total_msg_tx++;
+
 	return res;
 }
 
@@ -193,18 +217,21 @@ int llread(char* packet) {
 	REJ_FLAG = FALSE;
 
 	bytes_read = receiveData(fd, packet);
-	printf("here\n");
+	//printf("here\n");
 	control = currR(!REJ_FLAG);
 	sendACK(fd, control);
 	
-	printf("Nr: %d\n", Nr);
+	// printf("Nr: %d\n", Nr);
 
 	if (REJ_FLAG == FALSE) {
+		total_msg_rx++;
 		if (Nr == 1)
 			Nr = 0;
 		else
 			Nr = 1;
 	}
+	else
+		total_rej_rx++;
 	
 	return bytes_read;
 }
@@ -252,6 +279,29 @@ int llclose(int showStatistics) {
 	{
 		perror("tcsetattr");
 		exit(-1);
+	}
+
+	close(fd);
+
+	gettimeofday(&end, NULL);
+	double time_taken = end.tv_sec + end.tv_usec / 1e6 - 
+						start.tv_sec -start.tv_usec /1e6;
+
+	//Show statistics
+	if (showStatistics) {
+			printf("\nConnection statistics:\n");
+
+		if (ll.role == TRANSMITTER) {
+			printf("Total unique messages sent: %d\n", total_msg_tx);
+			printf("Total TIME-OUTS: %d\n", total_timeout);
+			printf("Total received REJ ACKs: %d\n", total_rej_tx);
+			printf("Time to execute: %.3f seconds\n", time_taken);
+		}
+		else {
+			printf("Total messages received: %d\n", total_msg_rx);
+			printf("Total sent REJ ACKs: %d\n", total_rej_tx);
+			printf("Time to execute: %.3f seconds\n", time_taken);
+		}
 	}
 
 	return 1;

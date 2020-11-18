@@ -314,7 +314,7 @@ int receiveACK(int fd, char *rbuf)
 		case S_STOP:
 	//		printf("STOP\n");
 			STOP = TRUE;
-			printf("ACK received\n");
+			// printf("ACK received\n");
 			break;
 		}
 	}
@@ -444,7 +444,7 @@ void receiveUA(int fd, char *rbuf, int role)
 		case S_STOP:
 			//printf("STOP\n");
 			STOP = TRUE;
-			printf("UA received\n");
+			// printf("UA received\n");
 			break;
 		}
 	}
