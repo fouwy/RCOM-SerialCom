@@ -32,10 +32,11 @@ void sig_handler()
 int llopen(linkLayer connectionParameters) {
     int c, res;
     int retranCount;
+
     ll = connectionParameters;
 
-    if	((strcmp("/dev/ttyS1", ll.serialPort) != 0) &&
-		 (strcmp("/dev/ttyS2", ll.serialPort) != 0))
+    if	((strcmp("/dev/ttyS10", ll.serialPort) != 0) &&
+		 (strcmp("/dev/ttyS11", ll.serialPort) != 0))
 	{
 		printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
 		return -1;
@@ -83,8 +84,8 @@ int llopen(linkLayer connectionParameters) {
     //TRANSMITTER
     if (ll.role == TRANSMITTER) 
     {   
-        printf("TRANSMITTER\n");
         char trash[5] = {};  //buffer for trash
+        printf("TRANSMITTER\n");
         (void)signal(SIGALRM, sig_handler);
 
         res = sendSET(fd);
@@ -112,8 +113,7 @@ int llopen(linkLayer connectionParameters) {
 			return -1;
 		}
 
-    // for (int i = 0; i < 3; i++)
-	// 	printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
+		alarm(0); //cancel alarm
     }
 
 
@@ -123,12 +123,8 @@ int llopen(linkLayer connectionParameters) {
         printf("RECEIVER\n");
         char trash[5];     //buffer for trash
         receiveSET(fd, trash);
-
-        // for (int i = 0; i < 3; i++)
-		//     printf("Message received: 0x%02x\n", (unsigned char)trash[i]);
             
         res = sendUA(fd, RECEIVER);
-		// printf("%d bytes written\n", res);
     }
 
     return fd;
@@ -137,11 +133,17 @@ int llopen(linkLayer connectionParameters) {
 int llwrite(char* buf, int bufSize) {
 	int res, i, retranCount = 0;
 	char supervBuf[5];	  //Supervision Frames Buffer
+	
+	REJ_FLAG = FALSE;
+	recACK = FALSE;
+	timeout = FALSE;
 
 	if (bufSize > MAX_PAYLOAD_SIZE) {
 		printf("Payload Size Greater than Max Allowed");
 		return -1;
 	}
+
+	// (void)signal(SIGALRM, sig_handler);
 
 	res = sendData(fd, buf, bufSize);
 	// printf("%d bytes written\n", res);
@@ -155,6 +157,8 @@ int llwrite(char* buf, int bufSize) {
 			REJ_FLAG = receiveACK(fd, supervBuf);
 	
 		}
+
+		printf("Timeout= %d, REJ_FLAG = %d\n", timeout, REJ_FLAG);
 
 		if ((timeout == TRUE) || (REJ_FLAG == TRUE))
 		{	
@@ -171,6 +175,7 @@ int llwrite(char* buf, int bufSize) {
 		}
 	}
 
+	printf("retransmittions: %d\n", retranCount);
 	printf("Ns: %d\n", Ns);
 
 	if (Ns == 1)
@@ -178,20 +183,20 @@ int llwrite(char* buf, int bufSize) {
 	else
 		Ns = 1;
 	
-	// for (i = 0; i < 3; i++)
-	// 	printf("Message received: 0x%02x\n", (unsigned char)supervBuf[i]);
+	alarm(0);		//cancel alarm
 	return res;
 }
 
 int llread(char* packet) {
 	int bytes_read;
 	char control;
-	//deve ser preciso mudar isto quando o numero da transmissao funcionar
-	//para reenviar o ACK
+	REJ_FLAG = FALSE;
+
 	bytes_read = receiveData(fd, packet);
+	printf("here\n");
 	control = currR(!REJ_FLAG);
 	sendACK(fd, control);
-
+	
 	printf("Nr: %d\n", Nr);
 
 	if (REJ_FLAG == FALSE) {
@@ -248,4 +253,6 @@ int llclose(int showStatistics) {
 		perror("tcsetattr");
 		exit(-1);
 	}
+
+	return 1;
 }
