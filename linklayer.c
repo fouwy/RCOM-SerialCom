@@ -20,7 +20,6 @@ struct timeval start, end;
 
 void sig_handler()
 {
-	// printf("sig\n");
 	if (recUA == FALSE)
 	{
 		timeout = TRUE;
@@ -46,7 +45,6 @@ int llopen(linkLayer connectionParameters) {
 		return -1;
 	}
 
-    //initialize flags
 	timeout = FALSE;
 	recACK = FALSE;
 	recUA = FALSE;
@@ -56,7 +54,6 @@ int llopen(linkLayer connectionParameters) {
 	Ns = 0;		//for transmitter
 	Nr = 1;		//for receiver
 
-	//initialize statistics variables
 	total_msg_tx = 0;
 	total_msg_rx = 0;
 	total_rej_tx = 0;
@@ -98,18 +95,17 @@ int llopen(linkLayer connectionParameters) {
     //TRANSMITTER
     if (ll.role == TRANSMITTER) 
     {   
-        char trash[5] = {};  //buffer for trash
+        char trash[5] = {};  //buffer for debug
         printf("TRANSMITTER\n");
         (void)signal(SIGALRM, sig_handler);
 
         res = sendSET(fd);
-        // printf("%d bytes written\n", res);
 
         while ((recUA == FALSE) && (retranCount < ll.numTries))
         {    
             if (timeout == FALSE && recUA == FALSE)
             {
-                alarm(ll.timeOut); //timeout in seconds
+                alarm(ll.timeOut);
                 receiveUA(fd, trash, TRANSMITTER);
             }
 
@@ -122,12 +118,12 @@ int llopen(linkLayer connectionParameters) {
             }
         }
 
-		if (retranCount == MAX_RETRANSMISSIONS_DEFAULT) {
-			printf("Did not respond after %d tries\n", MAX_RETRANSMISSIONS_DEFAULT);
+		if (retranCount == ll.numTries) {
+			printf("Did not respond after %d tries\n", ll.numTries);
 			return -1;
 		}
 
-		alarm(0); //cancel alarm
+		alarm(0);
     }
 
 
@@ -135,7 +131,7 @@ int llopen(linkLayer connectionParameters) {
     else if (ll.role == RECEIVER)
     {	
         printf("RECEIVER\n");
-        char trash[5];     //buffer for trash
+        char trash[5];     //buffer for debug
         receiveSET(fd, trash);
             
         res = sendUA(fd, RECEIVER);
@@ -157,22 +153,17 @@ int llwrite(char* buf, int bufSize) {
 		return -1;
 	}
 
-	// (void)signal(SIGALRM, sig_handler);
-
 	res = sendData(fd, buf, bufSize);
-	// printf("%d bytes written\n", res);
 
 	while ((recACK == FALSE) && (retranCount < ll.numTries))
 	{
 		
 		if ((timeout == FALSE) && (REJ_FLAG == FALSE))
 		{
-			alarm(ll.timeOut);		//timeout in seconds
+			alarm(ll.timeOut);
 			REJ_FLAG = receiveACK(fd, supervBuf);
 	
 		}
-
-		// printf("Timeout= %d, REJ_FLAG = %d\n", timeout, REJ_FLAG);
 
 		if ((timeout == TRUE) || (REJ_FLAG == TRUE))
 		{	
@@ -197,14 +188,12 @@ int llwrite(char* buf, int bufSize) {
 		return -1;
 	}
 
-	//printf("Ns: %d\n", Ns);
-
 	if (Ns == 1)
 		Ns = 0;
 	else
 		Ns = 1;
 	
-	alarm(0);		//cancel alarm
+	alarm(0);	
 	
 	total_msg_tx++;
 
@@ -217,11 +206,8 @@ int llread(char* packet) {
 	REJ_FLAG = FALSE;
 
 	bytes_read = receiveData(fd, packet);
-	//printf("here\n");
 	control = currR(!REJ_FLAG);
 	sendACK(fd, control);
-	
-	// printf("Nr: %d\n", Nr);
 
 	if (REJ_FLAG == FALSE) {
 		total_msg_rx++;
@@ -249,7 +235,7 @@ int llclose(int showStatistics) {
         {    
             if (timeout == FALSE && recACK == FALSE)
             {
-                alarm(ll.timeOut); //timeout in seconds
+                alarm(ll.timeOut);
                 receiveDISC(fd,trash, TRANSMITTER);
             }
 
@@ -287,7 +273,6 @@ int llclose(int showStatistics) {
 	double time_taken = end.tv_sec + end.tv_usec / 1e6 - 
 						start.tv_sec -start.tv_usec /1e6;
 
-	//Show statistics
 	if (showStatistics) {
 			printf("\nConnection statistics:\n");
 
